@@ -1,23 +1,23 @@
-function shamanskii_DataDriven(M,K0)
+function [p_save,r_save,t_save,x_save] = shamanskii_DataDriven(m,K0)
 %% initialization
+    rng(12345)
     % LQR setting
-    A = [-1.01887 0.90506 -0.00215;0.82225 -1.07741 -0.17555;0 0 -1];
-    B = [0;0;1];
-    Q = eye(3);
-    R = 1;    
+    [A,B,Q,R] = lqr_model;
     % solve algebraic Riccati equation
     [K_opt,P_opt] = lqr(A,B,Q,R);
     K_opt=-K_opt; 
     % initial iterative matrix
     if nargin < 2
-        K0 = [13.1166 13.8704 -2.9037];
+        %K0 = [0.2020 0.6051 -11.3408 -1.8520];
+        K0 = [827.5591 258.7122 -619.4836 -116.6448];
     end
     % off-policy RL setting
-    Kb = [-0.5412 2.8662 0.0963];    % parameter in behavior policy
-    a=(rand(1,100)-.5)*1;            % parameter in behavior policy
+    Kb=[0.0135 0.1662 -7.9984 -0.8625];
+    % Kb = [-0.5412 2.8662 0.0963];    % parameter in behavior policy
+    a=(rand(1,100)-.8)*100;            % parameter in behavior policy
     Kn=100;                          % parameter in behavior policy
     % initial condition for ode
-    x0=[-2;1;2];
+    x0=[-2;1;2;-1];
     [xn,un]=size(B);
     xx0=zeros(xn*xn,1);     % initial condition
     xu0=zeros(xn*un,1);     % initial condition
@@ -25,9 +25,9 @@ function shamanskii_DataDriven(M,K0)
     X0=[x0;xx0;xu0;V0];     % initial condition
 
     Nh=100; % number of sampling period
-    h=0.05; % duration of sampling period
+    h=0.2; % duration of sampling period
     if nargin < 1
-        M = 3; % inner loop
+        m = 3; % inner loop
     end
     % data memory
     x_save=[];
@@ -79,12 +79,12 @@ function shamanskii_DataDriven(M,K0)
     P0 = beta_inv_fcn(P0_vec);
     kP0 = reshape(kP0_vec,un,xn);
 
-    k_save = norm(kP0-K_opt);
     p_save = norm(P0-P_opt);
+    r_save = norm(Ric_operator(P0,A,B,Q,R));
 
     P_i = P0;
     kP_i = kP0;
-    for i=1:11
+    for i=1:10
         P_i0 = P_i;
         P_ij = P_i;
         kP_ij = kP_i;
@@ -98,7 +98,7 @@ function shamanskii_DataDriven(M,K0)
             A2=-2*Ixx*kron(eye(xn),kP_i'*R)+2*Ixu*kron(eye(xn),R);
             AA(i,:) = [A1 A2];
         end
-        for j=1:M
+        for j=1:m
             if j == 1
                 L=size(theta_xx_save,1);
                 b=zeros(L,1);
@@ -140,43 +140,58 @@ function shamanskii_DataDriven(M,K0)
             
         end
         P_i = P_ij;
-        kP_i = kP_ij;     
-        k_save = [k_save;norm(kP_i-K_opt)];
-        p_save = [p_save;norm(P_i-P_opt)];
+        kP_i = kP_ij;
+        p_save = [p_save;norm(P_i -P_opt)];
+        r_save = [r_save;norm(Ric_operator(P_i,A,B,Q,R))];
     end
+    
+
     %% Step 3: Policy Implementation Phase
     t0=t_save(end);
     tf=50;
     tspan=[t0 tf];
     X0=X(end,:)';
-    a=0;
-    Kn=0;
+    a=0;Kn=0;
     [t,X] = ode45(@(t,X) myode(t,X,A,B,Q,R,kP_i,a,Kn),tspan,X0);       
     t_save=[t_save;t];
     x_save=[x_save;X(:,1:xn)];
 
 
-    %% step 4: plot results
-    figure
-    hold on
-    plot(0:10,p_save(1:11),'-o','Linewidth',2)
-    xlabel( 'Iteration Index' , 'Interpreter' , 'latex' , 'FontSize' , 12 ) ; 
-    ylabel( '$\left\| {{P_i} - {P^*}} \right\|$', 'Interpreter' , 'latex'  , 'FontSize' , 12 ) ; 
-    title('Shamanskii Iteration with m=2', 'Interpreter' , 'latex' , 'FontSize' , 12 )
+end
+
+function [A,B,Q,R] = lqr_model
+    M = .5;
+    m = 0.2;
+    b = 0.1;
+    I = 0.006;
+    g = 9.8;
+    l = 0.3;
+    p = I*(M+m)+M*m*l^2; %denominator for the A and B matrices    
+    A = [0      1              0           0;
+         0 -(I+m*l^2)*b/p  (m^2*g*l^2)/p   0;
+         0      0              0           1;
+         0 -(m*l*b)/p       m*g*l*(M+m)/p  0];
+    B = [     0;
+         (I+m*l^2)/p;
+              0;
+            m*l/p];
+    Q=diag([1,1,1,1]);
+    R=1;
 end
 
 function P = beta_inv_fcn(P_vec)
     p_dim=length(P_vec);
-    P=[    P_vec(1) .5*P_vec(2) .5*P_vec(3);
-        .5*P_vec(2) 1.*P_vec(4) .5*P_vec(5);
-        .5*P_vec(3) .5*P_vec(5) 1.*P_vec(6)];
+    P=[    P_vec(1) .5*P_vec(2) .5*P_vec(3) .5*P_vec(4);
+        .5*P_vec(2) 1.*P_vec(5) .5*P_vec(6) .5*P_vec(7);
+        .5*P_vec(3) .5*P_vec(6) 1.*P_vec(8) .5*P_vec(9);
+        .5*P_vec(4) .5*P_vec(7) .5*P_vec(9) 1.*P_vec(10)];
 end
 function [out] = alpha_fcn(x)
-    x_dim = length(x);
     x1=x(1);
     x2=x(2);
     x3=x(3);
-    out=[x1^2;x1*x2;x1*x3;x2^2;x2*x3;x3^2];
+    x4=x(4);
+    out=[x1^2;x1*x2;x1*x3;x1*x4;x2^2;x2*x3;x2*x4;x3^2;x3*x4;x4^2];
 end
 function dX = myode(t,X,A,B,Q,R,K,a,Kn)
     [xn,~]=size(B);
