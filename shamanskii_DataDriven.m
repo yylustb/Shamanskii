@@ -158,7 +158,9 @@ function [p_save,r_save,t_save,x_save] = shamanskii_DataDriven(m,K0)
 
 
 end
-
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%
 function [A,B,Q,R] = lqr_model
     M = .5;
     m = 0.2;
