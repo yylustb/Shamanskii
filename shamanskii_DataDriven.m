@@ -155,12 +155,9 @@ function [p_save,r_save,t_save,x_save] = shamanskii_DataDriven(m,K0)
     [t,X] = ode45(@(t,X) myode(t,X,A,B,Q,R,kP_i,a,Kn),tspan,X0);       
     t_save=[t_save;t];
     x_save=[x_save;X(:,1:xn)];
-
-
+    
 end
-%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 function [A,B,Q,R] = lqr_model
     M = .5;
     m = 0.2;
