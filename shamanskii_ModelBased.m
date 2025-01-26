@@ -1,4 +1,4 @@
-function shamanskii_ModelBased(m,P0)
+function [piter_save,riter_save,iter] = shamanskii_ModelBased(m,P0)
 % m: inner iteration 
 % P0: initial iterative matrix
 %% initialization
@@ -6,45 +6,54 @@ function shamanskii_ModelBased(m,P0)
         m = 3; 
     end
     % LQR setting
-    A = [-1.01887 0.90506 -0.00215;0.82225 -1.07741 -0.17555;0 0 -1];
-    B = [0;0;1];
-    Q = eye(3);
-    R = 1;    
+    [A,B,Q,R] = lqr_model;
     % solve algebraic Riccati equation 
     [K_opt,P_opt] = lqr(A,B,Q,R);
-    K_opt=-K_opt;        
+    K_opt=-K_opt;   
     % initial iterative matrix
     if nargin < 2
-        K0 = [13.1166 13.8704 -2.9037];
+        %K0 = [0.2020 0.6051 -11.3408 -1.8520];
+        K0 = [827.5591 258.7122 -619.4836 -116.6448];
         P0 = lyap( (A+B*K0)', Q+K0'*R*K0 );
-    end    
+    end
     % save iterative process
-    piter_save = norm(P0 - P_opt);    
+    piter_save = norm(P0 - P_opt);
+    riter_save = norm(Ric_operator(P0,A,B,Q,R));
 %% main loop 
     P_i = P0;
-    kP_0 = K_operator(P0 ,B,R);
-    kP_i = K_operator(P_i,B,R);
-    for i = 1:11
+    iter = 0;
+    while piter_save(end)>1e-10
         P_i0 = P_i;      
         P_ij = P_i;      
         for j = 0:m-1    
             delta = lyap( A_operator(P_i0,A,B,R)', Ric_operator(P_ij,A,B,Q,R));
             P_ij = P_ij + delta;     
-            kP_ij = K_operator(P_ij,B,R);
         end
 
-        P_i = P_ij;                  
-        kP_i = K_operator(P_i,B,R);       
-        
+        P_i = P_ij;
         piter_save = [piter_save;norm(P_i - P_opt)];
+        riter_save = [riter_save;norm(Ric_operator(P_i,A,B,Q,R))];
+        iter = iter + 1;
     end
-
-    figure
-    hold on
-    plot(0:10,piter_save(1:11),'-o','Linewidth',2)
-    xlabel( 'Iteration Index' , 'Interpreter' , 'latex' , 'FontSize' , 12 ) ; 
-    ylabel( '$\left\| {{P_i} - {P^*}} \right\|$', 'Interpreter' , 'latex'  , 'FontSize' , 12 ) ; 
-    title('Shamanskii Iteration with m=2', 'Interpreter' , 'latex' , 'FontSize' , 12 )
+end
+function [A,B,Q,R] = lqr_model
+    M = .5;
+    m = 0.2;
+    b = 0.1;
+    I = 0.006;
+    g = 9.8;
+    l = 0.3;
+    p = I*(M+m)+M*m*l^2; %denominator for the A and B matrices    
+    A = [0      1              0           0;
+         0 -(I+m*l^2)*b/p  (m^2*g*l^2)/p   0;
+         0      0              0           1;
+         0 -(m*l*b)/p       m*g*l*(M+m)/p  0];
+    B = [     0;
+         (I+m*l^2)/p;
+              0;
+            m*l/p];
+    Q=diag([1,1,1,1]);
+    R=1;
 end
 
 function out = A_operator(P,A,B,R)
