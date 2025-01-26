@@ -36,6 +36,9 @@ function [piter_save,riter_save,iter] = shamanskii_ModelBased(m,P0)
         iter = iter + 1;
     end
 end
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%
 function [A,B,Q,R] = lqr_model
     M = .5;
     m = 0.2;
